@@ -7,6 +7,8 @@ import torch
 import os
 from torchvision import datasets, transforms
 from affine_transforms import Rotation, Zoom
+from main import AugMixDataset
+
 
 def per_image_standardization(x):
     y = x.view(-1, x.shape[1]*x.shape[2]*x.shape[3])
@@ -122,7 +124,7 @@ def load_data(data_aug, batch_size,workers,dataset, data_target_dir):
     return train_loader, test_loader, num_classes
 
 
-def load_data_subset(data_aug, batch_size,workers,dataset, data_target_dir, labels_per_class=100, valid_labels_per_class = 500):
+def load_data_subset(data_aug, batch_size,workers,dataset, data_target_dir, preprocess, no_jsd=True, augmix=True, labels_per_class=100, valid_labels_per_class = 500):
     ## copied from GibbsNet_pytorch/load.py
     import numpy as np
     from functools import reduce
@@ -272,7 +274,8 @@ def load_data_subset(data_aug, batch_size,workers,dataset, data_target_dir, labe
         pass
     else: 
         train_sampler, valid_sampler, unlabelled_sampler = get_sampler(train_data.targets, labels_per_class, valid_labels_per_class)
-
+    if augmix:
+        train_data = AugMixDataset(train_data, preprocess, no_jsd=no_jsd)
     if dataset == 'tiny-imagenet-200':
         labelled = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
         validation = None
@@ -405,7 +408,7 @@ def load_data_subset(data_aug, batch_size,workers,dataset, data_target_dir, vali
 """
 
 
-def load_data_subset_unpre(data_aug, batch_size,workers,dataset, data_target_dir, labels_per_class=100, valid_labels_per_class = 500):
+def load_data_subset_unpre(data_aug, batch_size,workers,dataset, data_target_dir, preprocess, no_jsd=True, labels_per_class=100, valid_labels_per_class = 500):
     ## loads the data without any preprocessing##
     import numpy as np
     from functools import reduce
@@ -511,6 +514,7 @@ def load_data_subset_unpre(data_aug, batch_size,workers,dataset, data_target_dir
         train_sampler, valid_sampler, unlabelled_sampler = get_sampler(train_data.train_labels, labels_per_class, valid_labels_per_class)
     
     labelled = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler = train_sampler, shuffle=False, num_workers=workers, pin_memory=True)
+    # train_data = AugMixDataset(train_data, preprocess, no_jsd)
     validation = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler = valid_sampler, shuffle=False, num_workers=workers, pin_memory=True)
     unlabelled = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler = unlabelled_sampler,shuffle=False,  num_workers=workers, pin_memory=True)
     test = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=True)

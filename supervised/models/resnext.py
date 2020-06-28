@@ -158,7 +158,7 @@ class CifarResNeXt(nn.Module):
         else: 
             return out
         
-def resnext29_16_64(num_classes=10,dropout=False, per_img_std = False):
+def resnext29_16_64(num_classes=10,dropout=False, per_img_std = False, stride=None):
   """Constructs a ResNeXt-29, 16*64d model for CIdropoutFAR-10 (by default)
   
   Args:
@@ -167,7 +167,7 @@ def resnext29_16_64(num_classes=10,dropout=False, per_img_std = False):
   model = CifarResNeXt(ResNeXtBottleneck, 29, 16, 64, num_classes, dropout, per_img_std)
   return model
 
-def resnext29_8_64(num_classes=10, dropout=False, per_img_std = False):
+def resnext29_8_64(num_classes=10, dropout=False, per_img_std = False, stride=None):
   """Constructs a ResNeXt-29, 8*64d model for CIFAR-10 (by default)
   
   Args:

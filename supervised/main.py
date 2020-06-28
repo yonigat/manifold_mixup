@@ -13,6 +13,9 @@ from torch.autograd import Variable
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import matplotlib as mpl
+
+from augmentations import augmentations
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -81,11 +84,25 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--add_name', type=str, default='')
 parser.add_argument('--job_id', type=str, default='')
 
+# AugMix options:
+parser.add_argument('--do-augmix', default=True, type=bool, help='Perfom AugMix on the input data')
+parser.add_argument('--mixture-width', default=3, type=int, help='Number of augmentation chains to mix per augmented example')
+parser.add_argument('--mixture-depth', default=-1, type=int, help='Depth of augmentation chains. -1 denotes stochastic depth in [1, 3]')
+parser.add_argument('--aug-severity', default=3, type=int, help='Severity of base augmentation operators')
+parser.add_argument('--no-jsd', '-nj', default=True, action='store_true', help='Turn off JSD consistency loss.')
+parser.add_argument('--all-ops', '-all', action='store_true', help='Turn on all operations (+brightness,contrast,color,sharpness).')
 args = parser.parse_args()
 args.use_cuda = args.ngpu>0 and torch.cuda.is_available()
 
 out_str = str(args)
 print(out_str)
+
+CORRUPTIONS = [
+    'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
+    'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
+    'brightness', 'contrast', 'elastic_transform', 'pixelate',
+    'jpeg_compression'
+]
 
 
 """
@@ -176,6 +193,58 @@ def accuracy(output, target, topk=(1,)):
         correct_k = correct[:k].view(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
+
+def aug(image, preprocess):
+  """Perform AugMix augmentations and compute mixture.
+
+  Args:
+    image: PIL.Image input image
+    preprocess: Preprocessing function which should return a torch tensor.
+
+  Returns:
+    mixed: Augmented and mixed image.
+  """
+  aug_list = augmentations.augmentations
+  if args.all_ops:
+    aug_list = augmentations.augmentations_all
+
+  ws = np.float32(np.random.dirichlet([1] * args.mixture_width))
+  m = np.float32(np.random.beta(1, 1))
+
+  mix = torch.zeros_like(preprocess(image))
+  for i in range(args.mixture_width):
+    image_aug = image.copy()
+    depth = args.mixture_depth if args.mixture_depth > 0 else np.random.randint(
+        1, 4)
+    for _ in range(depth):
+      op = np.random.choice(aug_list)
+      image_aug = op(image_aug, args.aug_severity)
+    # Preprocessing commutes since all coefficients are convex
+    mix += ws[i] * preprocess(image_aug)
+
+  mixed = (1 - m) * preprocess(image) + m * mix
+  return mixed
+
+
+class AugMixDataset(torch.utils.data.Dataset):
+  """Dataset wrapper to perform AugMix augmentation."""
+
+  def __init__(self, dataset, preprocess, no_jsd=False):
+    self.dataset = dataset
+    self.preprocess = preprocess
+    self.no_jsd = no_jsd
+
+  def __getitem__(self, i):
+    x, y = self.dataset[i]
+    if self.no_jsd:
+      return aug(x, self.preprocess), y
+    else:
+      im_tuple = (self.preprocess(x), aug(x, self.preprocess),
+                  aug(x, self.preprocess))
+      return im_tuple, y
+
+  def __len__(self):
+    return len(self.dataset)
 
 
 def mixup_criterion(y_a, y_b, lam):
@@ -310,7 +379,7 @@ def validate(val_loader, model, log):
 
   for i, (input, target) in enumerate(val_loader):
     if args.use_cuda:
-      target = target.cuda(async=True)
+      target = target.cuda()  #async=True)
       input = input.cuda()
     with torch.no_grad():
         input_var = Variable(input)
@@ -332,7 +401,9 @@ def validate(val_loader, model, log):
 
 best_acc = 0
 def main():
-
+    preprocess = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize([0.5] * 3, [0.5] * 3)])
     ### set up the experiment directories########
     exp_name=experiment_name_non_mnist(dataset=args.dataset,
                     arch=args.arch,
@@ -374,10 +445,10 @@ def main():
         train_loader, valid_loader, _ , test_loader, num_classes = load_data_subset_unpre(args.data_aug, args.batch_size, 2 ,args.dataset, args.data_dir,  labels_per_class = args.labels_per_class, valid_labels_per_class = args.valid_labels_per_class)
     else:
         per_img_std = False
-        train_loader, valid_loader, _ , test_loader, num_classes = load_data_subset(args.data_aug, args.batch_size, 2 ,args.dataset, args.data_dir,  labels_per_class = args.labels_per_class, valid_labels_per_class = args.valid_labels_per_class)
+        train_loader, valid_loader, _ , test_loader, num_classes = load_data_subset(args.data_aug, args.batch_size, 2 ,args.dataset, args.data_dir, preprocess, no_jsd=args.no_jsd, augmix=args.do_augmix,  labels_per_class = args.labels_per_class, valid_labels_per_class = args.valid_labels_per_class)
     
     if args.dataset == 'tiny-imagenet-200':
-        stride = 2 
+        stride = 2
     else:
         stride = 1
     #train_loader, valid_loader, _ , test_loader, num_classes = load_data_subset(args.data_aug, args.batch_size, 2, args.dataset, args.data_dir, 0.0, labels_per_class=5000)
