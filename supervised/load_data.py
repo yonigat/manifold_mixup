@@ -176,12 +176,15 @@ def load_data_subset(data_aug, batch_size,workers,dataset, data_target_dir, prep
                                                   transforms.Normalize(mean, std)])
             test_transform = transforms.Compose(
                                                 [transforms.ToTensor(), transforms.Normalize(mean, std)])
-        else:    
-            train_transform = transforms.Compose(
-                                                 [transforms.RandomHorizontalFlip(),
-                                                  transforms.RandomCrop(32, padding=2),
-                                                  transforms.ToTensor(),
-                                                  transforms.Normalize(mean, std)])
+        else:
+            if augmix:
+                train_transform = transforms.Compose([])
+            else:
+                train_transform = transforms.Compose(
+                [transforms.RandomHorizontalFlip(),
+                 transforms.RandomCrop(32, padding=2),
+                 transforms.ToTensor(),
+                 transforms.Normalize(mean, std)])
             test_transform = transforms.Compose(
                                                 [transforms.ToTensor(), transforms.Normalize(mean, std)])
     else:
