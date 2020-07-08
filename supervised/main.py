@@ -47,10 +47,10 @@ model_names = ["resnext29_8_64", "resnext29_16_64", 'resnet18', 'resnet34', 'res
 # print(model_names)
 parser = argparse.ArgumentParser(description='Trains ResNeXt on CIFAR or ImageNet',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('--dataset', type=str, default='cifar10',
+parser.add_argument('--dataset', type=str, default='tiny-imagenet-200',
                     choices=['cifar10', 'cifar100', 'imagenet', 'svhn', 'stl10', 'mnist', 'tiny-imagenet-200'],
                     help='Choose between Cifar10/100 and ImageNet.')
-parser.add_argument('--data_dir', type=str, default='cifar10',
+parser.add_argument('--data_dir', type=str, default='data/tiny-imagenet-200',
                     help='file where results are to be written')
 parser.add_argument('--root_dir', type=str, default='experiments',
                     help='folder where results are to be stored')
@@ -95,7 +95,7 @@ parser.add_argument('--add_name', type=str, default='')
 parser.add_argument('--job_id', type=str, default='')
 
 # AugMix options:
-parser.add_argument('--do-augmix', default=True, type=bool, help='Perfom AugMix on the input data')
+parser.add_argument('--do-augmix', action='store_true', default=False, help='Perfom AugMix on the input data')
 parser.add_argument('--mixture-width', default=3, type=int,
                     help='Number of augmentation chains to mix per augmented example')
 parser.add_argument('--mixture-depth', default=-1, type=int,
@@ -141,7 +141,8 @@ def experiment_name_non_mnist(dataset='cifar10',
                               train='vanilla',
                               mixup_alpha=0.0,
                               job_id=None,
-                              add_name=''):
+                              add_name='',
+                              use_augmix=True):
     exp_name = dataset
     exp_name += '_arch_' + str(arch)
     exp_name += '_train_' + str(train)
@@ -156,6 +157,7 @@ def experiment_name_non_mnist(dataset='cifar10',
     exp_name += '_mom_' + str(momentum)
     exp_name += '_decay_' + str(decay)
     exp_name += '_data_aug_' + str(data_aug)
+    exp_name += '_use_augmix_'+ str(use_augmix)
     if job_id != None:
         exp_name += '_job_id_' + str(job_id)
     if add_name != '':
@@ -443,7 +445,8 @@ def main():
                                          train=args.train,
                                          mixup_alpha=args.mixup_alpha,
                                          job_id=args.job_id,
-                                         add_name=args.add_name)
+                                         add_name=args.add_name,
+                                         use_augmix=args.do_augmix)
 
     exp_dir = args.root_dir + exp_name
 
